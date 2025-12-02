@@ -169,7 +169,10 @@ bool Raft::ReceivePropose(std::unique_ptr<AppendEntries> txn) {
   LOG(INFO) << "commitIndex_: " << commitIndex_;
   LOG(INFO) << "lastApplied_: " << lastApplied_;
   LOG(INFO) << "static_cast<int64_t>(data_.size()): " << static_cast<int64_t>(data_.size());
-  while (leaderCommit > commitIndex_ && lastApplied_ + 1 <= static_cast<int64_t>(data_.size())) {
+  LOG(INFO) << "leaderCommit > commitIndex_: " << (leaderCommit > commitIndex_ ? "true" : "false");
+  LOG(INFO) << "AppendEntriesMsg Committing";
+  LOG(INFO) << "lealastApplied_ + 1 <= static_cast<int64_t>(data_.size()) " << ((lastApplied_ + 1 <= static_cast<int64_t>(data_.size())) ? "true" : "false");
+  while ((leaderCommit != 0) && leaderCommit > lastApplied_ && lastApplied_ + 1 <= static_cast<int64_t>(data_.size())) {
     // assert(false);
     LOG(INFO) << "AppendEntriesMsg Committing";
     std::unique_ptr<AppendEntries> txnToCommit = nullptr;
@@ -206,7 +209,6 @@ bool Raft::ReceiveAppendEntriesResponse(std::unique_ptr<AppendEntriesResponse> r
   // handling for if term is correct, but follower is just out of date
   --nextIndex_[followerId];
   // send message
-  assert(false);
   return true;
 }
 

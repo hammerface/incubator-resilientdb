@@ -91,8 +91,9 @@ int Consensus::CommitMsgInternal(const AppendEntries& txn) {
   request->set_seq(txn.seq());
   request->set_uid(txn.uid());
   request->set_proxy_id(txn.proxy_id());
-
+  LOG(INFO) << "Commit request seq: " << txn.seq();
   transaction_executor_->Commit(std::move(request));
+  LOG(INFO) << "Request committed ";
   return 0;
 }
 
