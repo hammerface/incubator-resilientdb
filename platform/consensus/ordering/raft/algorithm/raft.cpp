@@ -1,880 +1,802 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- *
- *   http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
+// Dafny program the_program compiled into Cpp
+#include "DafnyRuntime.h"
+using namespace std::literals;
+#include "the_pro.h"
+namespace Types  {
 
-#include "platform/consensus/ordering/raft/algorithm/raft.h"
-
-#include <glog/logging.h>
-#include <algorithm>
-#include <chrono>
-#include <cstdint>
-#include <memory>
-
-#include "common/crypto/signature_verifier.h"
-#include "common/utils/utils.h"
-#include "platform/consensus/ordering/raft/proto/proposal.pb.h"
-#include "platform/proto/resdb.pb.h"
-
-namespace resdb {
-namespace raft {
-
-std::ostream& operator<<(std::ostream& stream, Role role) {
-  const char* nameRole[] = {"FOLLOWER", "CANDIDATE", "LEADER"};
-  return stream << nameRole[static_cast<int>(role)];
-}
-
-std::ostream& operator<<(std::ostream& stream, TermRelation tr) {
-  const char* nameTR[] = {"STALE", "CURRENT", "NEW"};
-  return stream << nameTR[static_cast<int>(tr)];
-}
-
-uint32_t LogEntry::GetSerializedSize() {
-  if (serializedSize == 0) {
-    serializedSize = ComputeSerializedEntrySize();
-  }
-  return serializedSize;
-}
-
-uint32_t LogEntry::ComputeSerializedEntrySize() const {
-  Entry entry;
-  entry.set_term(term);
-  entry.set_command(command);
-  return entry.ByteSizeLong();
-}
-
-Raft::Raft(int id, int f, int total_num, SignatureVerifier* verifier,
-  LeaderElectionManager* leaderelection_manager, ReplicaCommunicator* replica_communicator)
-    : ProtocolBase(id, f, total_num),
-    currentTerm_(0),
-    votedFor_(-1),
-    lastLogIndex_(0),
-    commitIndex_(0),
-    lastApplied_(0),
-    role_(Role::FOLLOWER),
-    is_stop_(false),
-    quorum_((total_num/2) + 1),
-    verifier_(verifier),
-    leader_election_manager_(leaderelection_manager),
-    replica_communicator_(replica_communicator) {
-  
-  id_ = id;
-  total_num_ = total_num;
-  f_ = (total_num-1)/2;
-  //last_ae_time_ = std::chrono::steady_clock::now();
-  //last_heartbeat_time_ = std::chrono::steady_clock::now();
-
-  auto sentinel = std::make_unique<LogEntry>();
-  sentinel->term = 0;
-  sentinel->command = "COMMON_PREFIX";
-  log_.push_back(std::move(sentinel));
-
-  inflightVecs_.resize(total_num_ + 1);
-  for (auto& vec : inflightVecs_) {
-    vec.reserve(maxInFlightPerFollower);
-  }
-  nextIndex_.assign(total_num_ + 1, lastLogIndex_ + 1);
-  matchIndex_.assign(total_num_ + 1, lastLogIndex_);
-}
-
-Raft::~Raft() { 
-  is_stop_ = true;
-}
-
-bool Raft::IsStop() { 
-  return is_stop_; 
-}
-
-void Raft::SetRole(Role role) { role_ = role; }
-
-bool Raft::ReceiveTransaction(std::unique_ptr<Request> req) {
-  std::vector<AeFields> messages;
+  uint64 __default::Min(uint64 a, uint64 b)
   {
-    std::lock_guard<std::mutex> lk(mutex_);
-    if (role_ != Role::LEADER) {
-      // Inform client proxy of new leader?
-      // Redirect transaction to a known leader?
-      LOG(INFO) << "JIM -> " << __FUNCTION__ << ": Replica is not leader, returning early";
-      return false;
+    if ((a) < (b)) {
+      return a;
+    } else {
+      return b;
     }
-      // append new transaction to log
-      auto entry = std::make_unique<LogEntry>();
-      entry->term = currentTerm_;
-      if (!req->SerializeToString(&entry->command)) {
-        LOG(INFO) << "JIM -> " << __FUNCTION__ << ": req could not be serialized";
-        return false;
-      }
-      entry->GetSerializedSize();
-      log_.push_back(std::move(entry));
-      
-
-
-      // TODO
-      // durably store the new entry somehow
-      // otherwise it is a safety violation to treat it as "appended"
-      // should not be responding to RPCs before durable.
-
-      lastLogIndex_++;
-      nextIndex_[id_] = lastLogIndex_ + 1;
-      matchIndex_[id_] = lastLogIndex_;
-
-      if (replicationLoggingFlag_) {
-        LOG(INFO) << "JIM -> " << __FUNCTION__ << ": Leader appended entry at index " << lastLogIndex_;
-      }
-
-      // prepare fields for appendEntries message
-      PruneExpiredInFlightMsgsLocked();
-      messages = GatherAeFieldsForBroadcastLocked();
-      auto now = std::chrono::steady_clock::now();
-      for (const auto& msg : messages) {
-        RecordNewInFlightMsgLocked(msg, now);
-      }
   }
-  for (const auto& msg : messages) {
-      CreateAndSendAppendEntryMsg(msg);
+   uint64 __default::MaxUint64 =  init__MaxUint64();
+
+  typedef uint64 uint64;
+
+  template <typename T>
+Entry<T>::Entry() {
+    term = 0;
+    command = get_default<T>::call();
   }
-  leader_election_manager_->OnAeBroadcast();
-  return true;
-}
 
-bool Raft::ReceiveAppendEntries(std::unique_ptr<AppendEntries> ae) {
-  if (ae->leaderid() == id_) { 
-    return false;
+  template <typename T>
+Message<T>::Message() {
+    Message_AppendEntries<T> COMPILER_result_subStruct;
+    COMPILER_result_subStruct.term = 0;
+    COMPILER_result_subStruct.leaderId = 0;
+    COMPILER_result_subStruct.prevLogIndex = 0;
+    COMPILER_result_subStruct.prevLogTerm = 0;
+    COMPILER_result_subStruct.entries = DafnySequence<Types::Entry <T> >();
+    COMPILER_result_subStruct.leaderCommitIndex = 0;
+    v = COMPILER_result_subStruct;
   }
-  uint64_t term;
-  bool success = false;
-  bool demoted = false;
-  TermRelation tr;
-  Role initialRole;
-  uint64_t lastLogIndex;
-  auto leaderCommit = ae->leadercommitindex();
-  auto leaderId = ae->leaderid();
-  std::vector<std::unique_ptr<Request>> eToApply;
+  template <typename T>
+inline bool is_Message_AppendEntries(const struct Message<T> d) { return std::holds_alternative<Message_AppendEntries<T>>(d.v); }
+  template <typename T>
+inline bool is_Message_AppendEntriesResponse(const struct Message<T> d) { return std::holds_alternative<Message_AppendEntriesResponse<T>>(d.v); }
+  template <typename T>
+inline bool is_Message_RequestVote(const struct Message<T> d) { return std::holds_alternative<Message_RequestVote<T>>(d.v); }
+  template <typename T>
+inline bool is_Message_RequestVoteResponse(const struct Message<T> d) { return std::holds_alternative<Message_RequestVoteResponse<T>>(d.v); }
 
-  const char* parent_fn = __FUNCTION__;
-  [&]() {
-    std::lock_guard<std::mutex> lk(mutex_);
-    // ---------- Checking term, role, prevlogindex, prevlogterm ----------
-    initialRole = role_;
-    lastLogIndex = lastLogIndex_;
-    tr = TermCheckLocked(ae->term());
-    if (tr == TermRelation::NEW) {
-      demoted = DemoteSelfLocked(ae->term());
-    }
-    else if (role_ != Role::FOLLOWER && tr == TermRelation::CURRENT) {
-      demoted = DemoteSelfLocked(ae->term());
-    }
-    
-    if (tr != TermRelation::STALE && role_ == Role::FOLLOWER) {
-      uint64_t i = ae->prevlogindex();
-      if (i < static_cast<uint64_t>(log_.size()) && ae->prevlogterm() == log_[i]->term) {
-        success = true; 
-      }
-    }
-    term = currentTerm_;
-    // Early return if we should not append
-    if (!success) {
-      return;
-    }
+  template <typename T>
+Event<T>::Event() {
+    Event_ReceiveTransaction<T> COMPILER_result_subStruct;
+    COMPILER_result_subStruct.request = get_default<T>::call();
+    v = COMPILER_result_subStruct;
+  }
+  template <typename T>
+inline bool is_Event_ReceiveTransaction(const struct Event<T> d) { return std::holds_alternative<Event_ReceiveTransaction<T>>(d.v); }
+  template <typename T>
+inline bool is_Event_ReceiveMessage(const struct Event<T> d) { return std::holds_alternative<Event_ReceiveMessage<T>>(d.v); }
+  template <typename T>
+inline bool is_Event_PossibleTimeOut(const struct Event<T> d) { return std::holds_alternative<Event_PossibleTimeOut<T>>(d.v); }
+  template <typename T>
+inline bool is_Event_PossibleHeartBeatNeeded(const struct Event<T> d) { return std::holds_alternative<Event_PossibleHeartBeatNeeded<T>>(d.v); }
 
-    // ---------- Appending entries ----------
-    uint64_t logIdx = ae->prevlogindex() + 1;
-    uint64_t entriesIdx = 0;
-    uint64_t entriesSize = static_cast<uint64_t>(ae->entries_size());
-    // check for conflicting entry terms in existing indices
-    // if conflict, delete suffix and short circuit out of loop
-    while (logIdx < log_.size() && entriesIdx < entriesSize) {
-      uint64_t term = ae->entries(entriesIdx).term();
-      if (term != log_[logIdx]->term) {
-        auto first = log_.begin() + logIdx;
-        auto last = log_.begin() + lastLogIndex_ + 1;
-        log_.erase(first, last);
-        lastLogIndex_ = log_.size() - 1;
+  template <typename T>
+Send<T>::Send() {
+    to = 0;
+    msg = Types::Message<T>();
+  }
 
-        if (replicationLoggingFlag_) {
-          LOG(INFO) << "JIM -> " << parent_fn << ": follower saw term mismatch at index " << logIdx << ". Suffix erased from log";
-        }
+  template <typename T>
+MessageOutput<T>::MessageOutput() {
+    MessageOutput_Messages<T> COMPILER_result_subStruct;
+    COMPILER_result_subStruct.msgs = DafnySequence<Types::Send <T> >();
+    v = COMPILER_result_subStruct;
+  }
+  template <typename T>
+inline bool is_MessageOutput_Messages(const struct MessageOutput<T> d) { return std::holds_alternative<MessageOutput_Messages<T>>(d.v); }
+  template <typename T>
+inline bool is_MessageOutput_NoMessage(const struct MessageOutput<T> d) { return std::holds_alternative<MessageOutput_NoMessage<T>>(d.v); }
 
-        break;
-      }
-      ++entriesIdx;
-      ++logIdx;
-    }
-
-    // append remaining entries
-    const auto appendSize = entriesSize - entriesIdx;
-    log_.reserve(log_.size() + appendSize);
-    for (uint64_t i = entriesIdx; i < entriesSize; ++i) {
-      log_.emplace_back(std::make_unique<LogEntry>(CreateLogEntry(ae->entries(i))));
-    }
-    // update lastLogIndex after appends
-    uint64_t firstAppendIdx = lastLogIndex_ + 1;
-    lastLogIndex_ = log_.size() - 1;
-    // TODO: have to actually store the entry durably before follower can respond to RPC
-    lastLogIndex = lastLogIndex_;
-
-    if (replicationLoggingFlag_ && appendSize > 0) {
-      if (appendSize > 1) {
-        LOG(INFO) << "JIM -> " << parent_fn << ": follower appended entries at indices " << firstAppendIdx << " to " << lastLogIndex_;
-      }
-      else {
-        LOG(INFO) << "JIM -> " << parent_fn << ": follower appended entry at index " << lastLogIndex_;
-      }
-    }
-
-    // ---------- Try to raise commitIndex and commit entries ----------
-    uint64_t prevCommitIndex = commitIndex_;
-    if (leaderCommit > commitIndex_) {
-       commitIndex_ = std::min(leaderCommit, lastLogIndex_);
-
-      if (replicationLoggingFlag_ && commitIndex_ > prevCommitIndex) {
-        LOG(INFO) << "JIM -> " << parent_fn << ": Raised commitIndex_ from "
-                  << prevCommitIndex << " to " << commitIndex_;
-      }
-
-    }
-
-    // build vector to apply committed entries outside mutex
-    eToApply = PrepareCommitLocked();
-  }();
-
-  /*
-  auto now = std::chrono::steady_clock::now();
-  std::chrono::steady_clock::duration delta;
-  delta = now - last_ae_time_;
-  last_ae_time_ = now;
   
-
-  if (replicationLoggingFlag_) {
-    
-    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(delta).count();
-    LOG(INFO) << "JIM -> " << __FUNCTION__ << ": AE received after " << ms << "ms";
-    
+TimerCommand::TimerCommand() {
+    TimerCommand_SetElectionTimer COMPILER_result_subStruct;
+    COMPILER_result_subStruct.gen = 0;
+    v = COMPILER_result_subStruct;
   }
-  */
+  
+inline bool is_TimerCommand_SetElectionTimer(const struct TimerCommand d) { return std::holds_alternative<TimerCommand_SetElectionTimer>(d.v); }
+  
+inline bool is_TimerCommand_SetReplicateTimer(const struct TimerCommand d) { return std::holds_alternative<TimerCommand_SetReplicateTimer>(d.v); }
 
-  // ---------- Outside mutex: inform leader_election_manager, apply committed entries, send response  ----------
-  if (demoted) {
-    leader_election_manager_->OnRoleChange();
-    LOG(INFO) << "JIM -> " << __FUNCTION__ << ": Demoted from "
-                << (initialRole == Role::LEADER ? "LEADER" : "CANDIDATE") << "->FOLLOWER in term " << term;
+  
+TimerOutput::TimerOutput() {
+    TimerOutput_TimerChanges COMPILER_result_subStruct;
+    COMPILER_result_subStruct.changes = DafnySequence<Types::TimerCommand>();
+    v = COMPILER_result_subStruct;
   }
+  
+inline bool is_TimerOutput_TimerChanges(const struct TimerOutput d) { return std::holds_alternative<TimerOutput_TimerChanges>(d.v); }
+  
+inline bool is_TimerOutput_NoTimerChange(const struct TimerOutput d) { return std::holds_alternative<TimerOutput_NoTimerChange>(d.v); }
 
-  if (tr != TermRelation::STALE) {
-    leader_election_manager_->OnHeartBeat();
+  
+CommitOutput::CommitOutput() {
+    CommitOutput_CommitAdvanced COMPILER_result_subStruct;
+    COMPILER_result_subStruct.lastApplied = 0;
+    COMPILER_result_subStruct.commitIndex = 0;
+    v = COMPILER_result_subStruct;
   }
+  
+inline bool is_CommitOutput_CommitAdvanced(const struct CommitOutput d) { return std::holds_alternative<CommitOutput_CommitAdvanced>(d.v); }
+  
+inline bool is_CommitOutput_NoCommit(const struct CommitOutput d) { return std::holds_alternative<CommitOutput_NoCommit>(d.v); }
 
-  for (auto& entry : eToApply) {
-    commit_(*entry);
+  template <typename T>
+Output<T>::Output() {
+    messages = Types::MessageOutput<T>();
+    timer = Types::TimerOutput();
+    commit = Types::CommitOutput();
   }
+}// end of namespace Types 
+namespace Raft  {
 
-  AppendEntriesResponse aer;
-  aer.set_term(term);
-  aer.set_success(success);
-  aer.set_id(id_);
-  aer.set_lastlogindex(lastLogIndex);
-  SendMessage(MessageType::AppendEntriesResponseMsg, aer, leaderId);
-
-  if (replicationLoggingFlag_) {
-    /*
-    if (success) {
-      LOG(INFO) << "JIM -> " << __FUNCTION__ << ": responded success";
-    }
-    else {
-      LOG(INFO) << "JIM -> " << __FUNCTION__ << ": responded failure";
-    }
-    */
-  }
-  return true;
-}
-
-bool Raft::ReceiveAppendEntriesResponse(std::unique_ptr<AppendEntriesResponse> aer) {
-  uint64_t term;
-  bool demoted = false;
-  bool resending = false;
-  TermRelation tr;
-  Role initialRole;
-  std::vector<std::unique_ptr<Request>> eToApply;
-  AeFields fields;
-  int followerId = aer->id();
-  const char* parent_fn = __FUNCTION__;
-  [&]() {
-    std::lock_guard<std::mutex> lk(mutex_);
-    initialRole = role_;
-    tr = TermCheckLocked(aer->term());
-    if (tr == TermRelation::NEW) {
-      demoted = DemoteSelfLocked(aer->term());
-    }
-    term = currentTerm_;
-
-    if (role_ != Role::LEADER || tr == TermRelation::STALE) {
-      return;
-    }
-    PruneExpiredInFlightMsgsLocked();
-    PruneRedundantInFlightMsgsLocked(followerId, aer->lastlogindex());
-    nextIndex_[followerId] = aer->lastlogindex() + 1;
-
-    // if successful, update matchIndex and try to commit more entries
-    if (aer->success()) {
-      // need to ensure matchIndex never decreases even if followers lastLogIndex decreases
-      matchIndex_[followerId] = std::max(matchIndex_[followerId], aer->lastlogindex());
-      // use updated matchIndex to find new entries eligible for commit
-      std::vector<uint64_t> sorted = matchIndex_;
-      std::sort(sorted.begin(), sorted.end(), std::greater<uint64_t>());
-      uint64_t lastReplicatedIndex = sorted[quorum_ - 1];
-      // Need to check the lastReplicatedIndex contains entry from current term
-      if (lastReplicatedIndex > commitIndex_ && log_[lastReplicatedIndex]->term == currentTerm_) {
-        LOG(INFO) << "JIM -> " << parent_fn << ": Raised commitIndex_ from "
-                 << commitIndex_ << " to " << lastReplicatedIndex;
-        commitIndex_ = lastReplicatedIndex;
-      }
-      // apply any newly committed entries to state machine
-      eToApply = PrepareCommitLocked();
-    }
-    // if failure, or if nextIndex[i] < lastLogIndex + 1 (follower isnt caught up)
-    if (!aer->success() || (nextIndex_[followerId] < lastLogIndex_ + 1)) {
-      if (!aer->success()) {
-        LOG(INFO) << "AppendEntriesResponse indicates FAILURE from follower " << followerId;
-      }
-      if (!InFlightPerFollowerLimitReachedLocked(followerId)) {
-        fields = GatherAeFieldsLocked(followerId);
-        resending = true;
-        auto now = std::chrono::steady_clock::now();
-        RecordNewInFlightMsgLocked(fields, now);
-      }
-    }
-  }();
-  if (demoted) {
-    leader_election_manager_->OnRoleChange();
-    LOG(INFO) << "JIM -> " << __FUNCTION__ << ": Demoted from " 
-                << (initialRole == Role::LEADER ? "LEADER" : "CANDIDATE") << "->FOLLOWER in term " << term;
-    return false;
-  }
-  if (resending) {
-    CreateAndSendAppendEntryMsg(fields);
-  }
-
-  for (auto& entry : eToApply) {
-    commit_(*entry);
-  }
-  return true;
-}
-
-void Raft::ReceiveRequestVote(std::unique_ptr<RequestVote> rv) {
-  int rvSender = rv->candidateid();
-  uint64_t rvTerm = rv->term();
-
-  uint64_t term;
-  bool voteGranted = false;
-  bool demoted = false;
-  bool validCandidate = false;
-  int votedFor = -1;
-  Role initialRole;
-
-  if (rvSender == id_) {
-    return;
-  }
-
-  //const char* parent_fn = __FUNCTION__;
-  [&]() {
-    std::lock_guard<std::mutex> lk(mutex_);
-    initialRole = role_;
-    // If their term is higher than ours, we accept new term, reset votedFor
-    // and convert to follower
-    TermRelation tr = TermCheckLocked(rvTerm);
-    if (tr == TermRelation::STALE) {
-      term = currentTerm_;
-      return;
-    }
-    else if (tr == TermRelation::NEW) {
-      demoted = DemoteSelfLocked(rvTerm);
-    }
-    // Then we continue voting process
-    term = currentTerm_;
-    votedFor = votedFor_;
-    uint64_t lastLogTerm = getLastLogTermLocked();
-    if (rv->lastlogterm() < lastLogTerm) {
-      return;
-    }
-    if (rv->lastlogterm() == lastLogTerm && rv->lastlogindex() < lastLogIndex_) {
-      return;
-    }
-    validCandidate = true;
-    if (votedFor_ == -1 || votedFor_ == rvSender) {
-      votedFor_ = rvSender;
-      voteGranted = true;
-    }
-  }();
-  if (demoted) { 
-    leader_election_manager_->OnRoleChange();
-    LOG(INFO) << "JIM -> " << __FUNCTION__ << ": Demoted from " 
-              << (initialRole == Role::LEADER ? "LEADER" : "CANDIDATE") << "->FOLLOWER in term " << term;
-  }
-  if (voteGranted) {
-    leader_election_manager_->OnHeartBeat(); 
-    LOG(INFO) << "JIM -> " << __FUNCTION__ << ": voted for " << rvSender<< " in term " << term;
-  }
-  else if (validCandidate) { 
-    LOG(INFO) << "JIM -> " << __FUNCTION__ << ": did not vote for "
-              << rvSender<< " on term " << term << ". I already voted for " << votedFor
-              << ((votedFor == id_) ? " (myself)" : "");
-  }
-
-  RequestVoteResponse rvr;
-  rvr.set_term(term);
-  rvr.set_voterid(id_);
-  rvr.set_votegranted(voteGranted);
-  SendMessage(MessageType::RequestVoteResponseMsg, rvr, rvSender);
-}
-
-void Raft::ReceiveRequestVoteResponse(std::unique_ptr<RequestVoteResponse> rvr) {
-  uint64_t term = rvr->term();
-  int voterId = rvr->voterid();
-  bool votedYes = rvr->votegranted();
-  bool demoted = false;
-  bool elected = false;
-  Role initialRole;
-
-  const char* parent_fn = __FUNCTION__;
-  [&]() {
-    std::lock_guard<std::mutex> lk(mutex_);
-    initialRole = role_;
-    TermRelation tr = TermCheckLocked(term);
-    if (tr == TermRelation::STALE) {
-      return;
-    }
-    else if (tr == TermRelation::NEW) { 
-      demoted = DemoteSelfLocked(term);
-      return;
-    }
-    if (role_ != Role::CANDIDATE) {
-      return;
-    }
-    if (!votedYes) {
-      return;
-    }
-    bool dupe = (std::find(votes_.begin(), votes_.end(), voterId) != votes_.end());
-    if (dupe) {
-      return;
-    }
-    votes_.push_back(voterId);
-    LOG(INFO) << "JIM -> " << parent_fn << ": Replica " << voterId << " voted for me. Votes: " 
-              << votes_.size() << "/" << quorum_ << " in term " << currentTerm_;
-    if (votes_.size() >= quorum_) {
-      elected = true;
-      SetRole(Role::LEADER);
-      ClearInFlightsLocked();
-      nextIndex_.assign(total_num_ + 1, lastLogIndex_ + 1);
-
-      // make sure to set leaders own matchIndex entry to lastLogIndex
-      matchIndex_.assign(total_num_ + 1, 0);
-      matchIndex_[id_] = lastLogIndex_;
-      LOG(INFO) << "JIM -> " << parent_fn << ": CANDIDATE->LEADER in term " << currentTerm_;
-    }
-  }();
-    if (demoted || elected) {
-      leader_election_manager_->OnRoleChange();
-    }
-    if (demoted) {
-      LOG(INFO) << "JIM -> " << __FUNCTION__ << ": Demoted from " 
-                << (initialRole == Role::LEADER ? "LEADER" : "CANDIDATE") << "->FOLLOWER in term " << term;
-    }
-    if (elected) {
-      SendHeartBeat();
-    }
-}
-
-Role Raft::GetRoleSnapshot() const {
-  std::lock_guard<std::mutex> lk(mutex_);
-  return role_;
-}
-
-// Called from LeaderElectionManager::StartElection when timeout
-void Raft::StartElection() {
-  uint64_t currentTerm;
-  int candidateId;
-  uint64_t lastLogIndex;
-  uint64_t lastLogTerm;
-  bool roleChanged = false;
-
+  template <typename __T>
+  std::shared_ptr<Raft::StateMachine <__T> > __default::StateMachineFactory(uint64 id, uint64 f, uint64 total__num, __T sentinel)
   {
-    std::lock_guard<std::mutex> lk(mutex_);
-    if (role_ == Role::LEADER) {
-      LOG(WARNING) << __FUNCTION__ << ": Leader tried to start election";
-      return;
-    }
-    if (role_ == Role::FOLLOWER) {
-      SetRole(Role::CANDIDATE);
-      roleChanged = true;
-    }
-    heartBeatsSentThisTerm_ = 0;
-    currentTerm_++;
-    votedFor_ = id_;
-    votes_.clear();
-    votes_.push_back(id_);
-    LOG(INFO) << "JIM -> " << __FUNCTION__ << ": I voted for myself. Votes: " 
-              << votes_.size() << "/" << quorum_ << " in term " << currentTerm_;
-
-    currentTerm = currentTerm_;
-    candidateId = id_;
-    lastLogIndex = lastLogIndex_;
-    lastLogTerm = getLastLogTermLocked();
+    std::shared_ptr<Raft::StateMachine <__T> > r = nullptr;
+    std::shared_ptr<Raft::StateMachine <__T> > _nw0 = std::make_shared<Raft::StateMachine <__T> > ();
+    _nw0->__ctor(id, f, total__num, sentinel);
+    r = _nw0;
+    return r;
   }
-  if (roleChanged) {
-    leader_election_manager_->OnRoleChange();
-    LOG(INFO) << __FUNCTION__ << ": FOLLOWER->CANDIDATE in term " << currentTerm;
-  }
-
-  RequestVote rv;
-  rv.set_term(currentTerm);
-  rv.set_candidateid(candidateId);
-  rv.set_lastlogindex(lastLogIndex);
-  rv.set_lastlogterm(lastLogTerm);
-  Broadcast(MessageType::RequestVoteMsg, rv);
-}
-
-void Raft::SendHeartBeat() {
-  auto functionStart = std::chrono::steady_clock::now();
-  std::chrono::steady_clock::duration functionDelta;
-
-  std::vector<AeFields> messages;
-  uint64_t currentTerm;
-  uint64_t heartBeatNum;
+  bool __default::CandidateLogUpToDate(uint64 candidateLastLogTerm, uint64 localLastLogTerm, uint64 candidateLastLogIndex, uint64 localLastLogIndex)
   {
-    std::lock_guard<std::mutex> lk(mutex_);
-    if (role_ != Role::LEADER) {
-      LOG(WARNING) << __FUNCTION__ << ": Non-Leader tried to start HeartBeat";
-      return;
+    return ((candidateLastLogTerm) > (localLastLogTerm)) || (((candidateLastLogTerm) == (localLastLogTerm)) && ((candidateLastLogIndex) >= (localLastLogIndex)));
+  }
+  Raft::TermRelation __default::CompareTerms(uint64 lTerm, uint64 rTerm)
+  {
+    if ((lTerm) > (rTerm)) {
+      return Raft::TermRelation::create_Stale();
+    } else if ((lTerm) == (rTerm)) {
+      return Raft::TermRelation::create_Current();
+    } else {
+      return Raft::TermRelation::create_New();
     }
-    currentTerm = currentTerm_;
-    
-    heartBeatsSentThisTerm_++;
-    heartBeatNum = heartBeatsSentThisTerm_;
-    bool heartbeat = true;
-    messages = GatherAeFieldsForBroadcastLocked(heartbeat);
   }
+   Raft::ReplicationState __default::unusedIndex =  init__unusedIndex();
+   uint64 __default::maxEntries =  init__maxEntries();
 
-  auto msgStart = std::chrono::steady_clock::now();
-  std::chrono::steady_clock::duration msgDelta;
   
-  for (const auto& msg : messages) {
-    CreateAndSendAppendEntryMsg(msg);
+Role::Role() {
+    Role_Follower COMPILER_result_subStruct;
+    v = COMPILER_result_subStruct;
   }
   
-  auto msgEnd = std::chrono::steady_clock::now();
-  msgDelta = msgEnd - msgStart;
-  auto msgMs = std::chrono::duration_cast<std::chrono::milliseconds>(msgDelta).count();
+inline bool is_Role_Follower(const struct Role d) { return std::holds_alternative<Role_Follower>(d.v); }
+  
+inline bool is_Role_Candidate(const struct Role d) { return std::holds_alternative<Role_Candidate>(d.v); }
+  
+inline bool is_Role_Leader(const struct Role d) { return std::holds_alternative<Role_Leader>(d.v); }
 
-  if (livenessLoggingFlag_) {
-    LOG(INFO) << "JIM -> " << __FUNCTION__ << ": " << msgMs << " ms elapsed in CreateAndSend loop";
-    LOG(INFO) << "JIM -> " << __FUNCTION__ << ": Heartbeat " << heartBeatNum << " for term " << currentTerm;
+  
+TermRelation::TermRelation() {
+    TermRelation_Stale COMPILER_result_subStruct;
+    v = COMPILER_result_subStruct;
   }
   
-  auto redirectStart = std::chrono::steady_clock::now();
-  std::chrono::steady_clock::duration redirectDelta;
+inline bool is_TermRelation_Stale(const struct TermRelation d) { return std::holds_alternative<TermRelation_Stale>(d.v); }
   
-  // Also ping client proxies that this is the leader
-  DirectToLeader dtl;
-  dtl.set_term(currentTerm);
-  dtl.set_leaderid(id_);
-  for (const auto& client : replica_communicator_->GetClientReplicas()) {
-    int id = client.id();
-    SendMessage(DirectToLeaderMsg, dtl, id);
-    //LOG(INFO) << "JIM -> " << __FUNCTION__ << ": DirectToLeader " << id_ << " sent to proxy " << id;
+inline bool is_TermRelation_Current(const struct TermRelation d) { return std::holds_alternative<TermRelation_Current>(d.v); }
+  
+inline bool is_TermRelation_New(const struct TermRelation d) { return std::holds_alternative<TermRelation_New>(d.v); }
+
+  
+ReplicationState::ReplicationState() {
+    nextIndex = 0;
+    matchIndex = 0;
+    heartBeatGen = 0;
+  }
+
+  
+  template <typename T>
+  Types::Entry <T>  StateMachine<T>::SentinelEntry(T default_)
+  {
+    return Types::Entry<T>((uint64)0, default_);
   }
   
-  auto redirectEnd = std::chrono::steady_clock::now();
-  redirectDelta = redirectEnd - redirectStart;
-  auto redirectMs = std::chrono::duration_cast<std::chrono::milliseconds>(redirectDelta).count();
+  template <typename T>
+  void StateMachine<T>::__ctor(uint64 id, uint64 f, uint64 total__num, T sentinel)
+  {
+    (this)->quorum = ((total__num) / ((uint64)2)) + ((uint64)1);
+    (this)->id = id;
+    (this)->total__num = total__num;
+    (this)->role = Raft::Role::create_Follower();
+    (this)->currentTerm = (uint64)0;
+    (this)->votedFor = (uint64)0;
+    (this)->lastLogIndex = (uint64)0;
+    (this)->commitIndex = (uint64)0;
+    (this)->lastApplied = (uint64)0;
+    (this)->timeOutGen = (uint64)0;
+    (this)->votes = DafnySequence<uint64>::Create({});
+    DafnyArray<Types::Entry <T> > _out0;
+    _out0 = (this)->NewLog(sentinel);
+    (this)->log = _out0;
+    DafnyArray<Raft::ReplicationState> _out1;
+    _out1 = (this)->NewReplicationStates();
+    (this)->replicationStates = _out1;
+  }
   
-  
-  auto functionEnd = std::chrono::steady_clock::now();
-  functionDelta = functionEnd - functionStart;
-  auto functionMs = std::chrono::duration_cast<std::chrono::milliseconds>(functionDelta).count();
-
-  if (livenessLoggingFlag_) {
-    LOG(INFO) << "JIM -> " << __FUNCTION__ << ": " << redirectMs << " ms elapsed in redirect loop";
-    LOG(INFO) << "JIM -> " << __FUNCTION__ << ": " << functionMs << " ms elapsed in function";
-  }
-}
-
-// requires raft mutex to be held
-// returns true if demoted
-bool Raft::DemoteSelfLocked(uint64_t term) {
-  if (term > currentTerm_) {
-    currentTerm_ = term;
-    votedFor_ = -1;
-  }
-  if (role_ != Role::FOLLOWER) {
-    SetRole(Role::FOLLOWER);
-    //LOG(INFO) << "JIM -> " << __FUNCTION__ << ": Demoted to FOLLOWER";
-    return true;
-  }
-  return false;
-}
-
-// requires raft mutex to be held
-TermRelation Raft::TermCheckLocked(uint64_t term) const {
-  if (term < currentTerm_) {
-    return TermRelation::STALE;
-  }
-  else if (term == currentTerm_) {
-    return TermRelation::CURRENT;
-  }
-  else {
-    return TermRelation::NEW;
-  }
-}
-
-// requires raft mutex to be held
-uint64_t Raft::getLastLogTermLocked() const {
-  return log_[lastLogIndex_]->term;
-}
-
-// requires raft mutex to be held
-std::vector<std::unique_ptr<Request>> Raft::PrepareCommitLocked() {
-  std::vector<std::unique_ptr<Request>> commitVec;
-  uint64_t begin = lastApplied_ + 1;
-  bool applying = false;
-  while (lastApplied_ < commitIndex_) {
-    ++lastApplied_;
-    auto command = std::make_unique<Request>();
-    if (!command->ParseFromString(log_[lastApplied_]->command)) {
-      LOG(INFO) << "JIM -> " << __FUNCTION__ << ": Failed to parse command";
-      continue;
-    }
-    // assign seq number as log index for the request or executing transactions fails.
-    command->set_seq(lastApplied_);
-    commitVec.push_back(std::move(command));
-    applying = true;
-  }
-
-  if (applying && replicationLoggingFlag_) {
-      if (lastApplied_ > begin) {
-        LOG(INFO) << "JIM -> " << __FUNCTION__ << ": Applying index entries " << begin << " to " << lastApplied_;
+  template <typename T>
+  Types::Output <T>  StateMachine<T>::HandleEvent(Types::Event <T>  e)
+  {
+    Types::Output <T>  out = Types::Output<T>();
+    Types::Event <T>  _source0 = e;
+    {
+      if (is_Event_ReceiveTransaction(_source0)) {
+        T _0_req = ((_source0).dtor_request());
+        Types::Output <T>  _out0;
+        _out0 = (this)->OnClientRequest(_0_req);
+        out = _out0;
+        goto after_match0;
       }
-      else {
-        LOG(INFO) << "JIM -> " << __FUNCTION__ << ": Applying index entry " << lastApplied_;
+    }
+    {
+      if (is_Event_ReceiveMessage(_source0)) {
+        Types::Message <T>  _1_msg = ((_source0).dtor_message());
+        Types::Output <T>  _out1;
+        _out1 = (this)->OnRpc(_1_msg);
+        out = _out1;
+        goto after_match0;
       }
-  }
-
-  return commitVec;
-}
-
-AeFields Raft::GatherAeFieldsLocked(int followerId, bool heartBeat) const {
-  AeFields fields{};
-  fields.term = currentTerm_;
-  fields.leaderId = id_;
-  fields.leaderCommit = commitIndex_;
-  fields.prevLogIndex = nextIndex_[followerId] - 1;
-  fields.prevLogTerm = log_[fields.prevLogIndex]->term;
-  fields.followerId = followerId;
-  if (heartBeat) {
-    return fields;
-  }
-  uint32_t msgBytes = maxHeaderBytes;
-  const uint64_t firstNew = nextIndex_[followerId];
-  const uint64_t limit = std::min(lastLogIndex_, (firstNew + maxEntries) - 1);
-  for (uint64_t i = firstNew; i <= limit; ++i) {
-    msgBytes += log_[i]->GetSerializedSize();
-    // Always include at least 1 entry, after that limit by maxBytes.
-    if (i != firstNew && msgBytes >= maxBytes) {
-      break;
     }
-    LogEntry entry;
-    entry.term = log_[i]->term;
-    entry.command = log_[i]->command;
-    fields.entries.push_back(entry);
-  }
-  return fields;
-}
-
-// returns vector of tuples <followerId, AeFields>
-// If heartBeat == true, entries[] will be empty for all messages
-// else entries will each contain at most maxEntries amount of entries
-// Followers will be excluded from the broadcast if they are at inflight max unless this is a heartbeat
-std::vector<AeFields> Raft::GatherAeFieldsForBroadcastLocked(bool heartBeat) const {
-  assert(role_ == Role::LEADER);
-  std::vector<AeFields> fieldsVec;
-  fieldsVec.reserve(total_num_ - 1);
-  for (size_t i = 1; i <= total_num_; ++i) {
-    if (i == id_) {
-      continue;
+    {
+      if (is_Event_PossibleTimeOut(_source0)) {
+        uint64 _2_gen = ((_source0).dtor_timeOutGenSnapshot());
+        Types::Output <T>  _out2;
+        _out2 = (this)->TryStartElection(_2_gen);
+        out = _out2;
+        goto after_match0;
+      }
     }
-    if (!heartBeat && InFlightPerFollowerLimitReachedLocked(i)) {
-      continue;
+    {
+      uint64 _3_fid = ((_source0).dtor_followerId());
+      uint64 _4_gen = ((_source0).dtor_heartBeatGenSnapshot());
+      Types::Output <T>  _out3;
+      _out3 = (this)->TryReplicateToFollower(_3_fid, _4_gen);
+      out = _out3;
     }
-    AeFields fields = GatherAeFieldsLocked(i, heartBeat);
-    fieldsVec.push_back(fields);
+  after_match0: ;
+    return out;
   }
-  return fieldsVec;
-}
-
-void Raft::CreateAndSendAppendEntryMsg(const AeFields& fields) {
-  int followerId = fields.followerId;
-  AppendEntries ae;
-  ae.set_term(fields.term);
-  ae.set_leaderid(fields.leaderId);
-  ae.set_prevlogindex(fields.prevLogIndex);
-  ae.set_prevlogterm(fields.prevLogTerm);
-  ae.set_leadercommitindex(fields.leaderCommit);
-  for (const auto& entry : fields.entries) {
-    auto* newEntry = ae.add_entries();
-    newEntry->set_term(entry.term);
-    newEntry->set_command(entry.command);
-  }
-  SendMessage(MessageType::AppendEntriesMsg, ae, followerId);
-  if (replicationLoggingFlag_) {
-    uint64_t entryCount = fields.entries.size();
-    LOG(INFO) << "JIM -> " << __FUNCTION__ << ": Sent AE with " << entryCount << (entryCount == 1 ? " entry" : " entries");
-  }
-}
-
-LogEntry Raft::CreateLogEntry(const Entry& entry) const {
-  LogEntry newEntry;
-  newEntry.term = entry.term();
-  newEntry.command = entry.command();
-  return newEntry;
-}
-
-void Raft::ClearInFlightsLocked() {
-  assert(role_ == Role::LEADER);
-  for (auto& vec : inflightVecs_) {
-    vec.clear();
-  }
-}
-
-void Raft::PruneExpiredInFlightMsgsLocked() {
-  assert(role_ == Role::LEADER);
-  auto now = std::chrono::steady_clock::now();
-  for (size_t i = 1; i < inflightVecs_.size(); ++i) {
-    if (i == id_) {
-      continue;
+  
+  template <typename T>
+  Types::Output <T>  StateMachine<T>::OnRpc(Types::Message <T>  msg)
+  {
+    Types::Output <T>  out = Types::Output<T>();
+    Types::Message <T>  _source0 = msg;
+    {
+      if (is_Message_AppendEntries(_source0)) {
+        Types::Output <T>  _out0;
+        _out0 = (this)->OnAppendEntriesRpc(msg);
+        out = _out0;
+        goto after_match0;
+      }
     }
-    auto& vec = inflightVecs_[i];
-    if (vec.empty()) {
-      continue;
+    {
+      if (is_Message_AppendEntriesResponse(_source0)) {
+        Types::Output <T>  _out1;
+        _out1 = (this)->OnAppendEntriesResponseRpc(msg);
+        out = _out1;
+        goto after_match0;
+      }
     }
-    auto it = vec.begin();
-    while(it != vec.end()) {
-      auto timeElapsed = now - it->timeSent;
-      if (timeElapsed >= AEResponseDeadline) {
-        it = vec.erase(it);
-        if (replicationLoggingFlag_) {
-          LOG(INFO) << "JIM -> " << __FUNCTION__ << ": Pruned expired inflight AE for follower " << i;
+    {
+      if (is_Message_RequestVote(_source0)) {
+        Types::Output <T>  _out2;
+        _out2 = (this)->OnRequestVoteRpc(msg);
+        out = _out2;
+        goto after_match0;
+      }
+    }
+    {
+      Types::Output <T>  _out3;
+      _out3 = (this)->OnRequestVoteResponseRpc(msg);
+      out = _out3;
+    }
+  after_match0: ;
+    return out;
+  }
+  
+  template <typename T>
+  Types::Output <T>  StateMachine<T>::OnClientRequest(T req)
+  {
+    Types::Output <T>  out = Types::Output<T>();
+    out = Types::Output<T>(Types::MessageOutput <T> ::create_NoMessage(), Types::TimerOutput::create_NoTimerChange(), Types::CommitOutput::create_NoCommit());
+    if ((this->role) != (Raft::Role::create_Leader())) {
+      return out;
+    }
+    Types::Entry <T>  _0_entry;
+    _0_entry = Types::Entry<T>(this->currentTerm, req);
+    DafnyArray<Types::Entry <T> > _arr0 = this->log;
+    uint64 _index0 = (this->lastLogIndex) + ((uint64)1);
+    _arr0.at(_index0) = _0_entry;
+    (this)->lastLogIndex = (this->lastLogIndex) + ((uint64)1);
+    DafnyArray<Raft::ReplicationState> _arr1 = this->replicationStates;
+    _arr1.at(((this)->id)) = Raft::ReplicationState((this->lastLogIndex) + ((uint64)1), this->lastLogIndex, (((this->replicationStates).at((this)->id)).heartBeatGen));
+    return out;
+  }
+  
+  template <typename T>
+  Types::Output <T>  StateMachine<T>::TryStartElection(uint64 gen)
+  {
+    Types::Output <T>  out = Types::Output<T>();
+    if (((gen) != (this->timeOutGen)) || ((this->role) == (Raft::Role::create_Leader()))) {
+      out = Types::Output<T>(Types::MessageOutput <T> ::create_NoMessage(), Types::TimerOutput::create_NoTimerChange(), Types::CommitOutput::create_NoCommit());
+      return out;
+    }
+    (this)->role = Raft::Role::create_Candidate();
+    (this)->currentTerm = (this->currentTerm) + ((uint64)1);
+    (this)->votedFor = (this)->id;
+    (this)->votes = DafnySequence<uint64>::Create({(this)->id});
+    (this)->timeOutGen = (this->timeOutGen) + ((uint64)1);
+    Types::Message <T>  _0_requestVoteMsg;
+    _0_requestVoteMsg = Types::Message <T> ::create_RequestVote(this->currentTerm, (this)->id, this->lastLogIndex, (((this->log).at(this->lastLogIndex)).term));
+    DafnySequence<Types::Send <T> > _1_sends;
+    _1_sends = DafnySequence<Types::Send <T> >::Create({});
+    uint64 _2_i;
+    _2_i = (uint64)1;
+    while ((_2_i) < (((this)->total__num) + ((uint64)1))) {
+      if ((_2_i) != ((this)->id)) {
+        _1_sends = (_1_sends).concatenate(DafnySequence<Types::Send <T> >::Create({Types::Send<T>(_2_i, _0_requestVoteMsg)}));
+      }
+      _2_i = (_2_i) + ((uint64)1);
+    }
+    out = Types::Output<T>(Types::MessageOutput <T> ::create_Messages(_1_sends), Types::TimerOutput::create_TimerChanges(DafnySequence<Types::TimerCommand>::Create({Types::TimerCommand::create_SetElectionTimer(this->timeOutGen)})), Types::CommitOutput::create_NoCommit());
+    return out;
+  }
+  
+  template <typename T>
+  Types::Output <T>  StateMachine<T>::TryReplicateToFollower(uint64 fid, uint64 gen)
+  {
+    Types::Output <T>  out = Types::Output<T>();
+    if ((((this->role) != (Raft::Role::create_Leader())) || ((fid) == ((this)->id))) || ((gen) != ((((this->replicationStates).at(fid)).heartBeatGen)))) {
+      out = Types::Output<T>(Types::MessageOutput <T> ::create_NoMessage(), Types::TimerOutput::create_NoTimerChange(), Types::CommitOutput::create_NoCommit());
+      return out;
+    }
+    uint64 _0_nextIndex;
+    _0_nextIndex = (((this->replicationStates).at(fid)).nextIndex);
+    DafnySequence<Types::Entry <T> > _1_entries;
+    _1_entries = DafnySequence<Types::Entry <T> >::Create({});
+    if ((_0_nextIndex) <= (this->lastLogIndex)) {
+      _1_entries = DafnySequence<Types::Entry <T> >::SeqFromArraySlice((this->log),(_0_nextIndex),(Types::__default::Min((_0_nextIndex) + (Raft::__default::maxEntries), (this->lastLogIndex) + ((uint64)1))));
+    }
+    Types::MessageOutput <T>  _2_sends;
+    _2_sends = Types::MessageOutput <T> ::create_Messages(DafnySequence<Types::Send <T> >::Create({Types::Send<T>(fid, Types::Message <T> ::create_AppendEntries(this->currentTerm, (this)->id, (_0_nextIndex) - ((uint64)1), (((this->log).at((_0_nextIndex) - ((uint64)1))).term), _1_entries, this->commitIndex))}));
+    DafnyArray<Raft::ReplicationState> _arr0 = this->replicationStates;
+    _arr0.at((fid)) = Raft::ReplicationState((((this->replicationStates).at(fid)).nextIndex), (((this->replicationStates).at(fid)).matchIndex), ((((this->replicationStates).at(fid)).heartBeatGen)) + ((uint64)1));
+    Types::TimerOutput _3_timer;
+    _3_timer = Types::TimerOutput::create_TimerChanges(DafnySequence<Types::TimerCommand>::Create({Types::TimerCommand::create_SetReplicateTimer(fid, (((this->replicationStates).at(fid)).heartBeatGen))}));
+    out = Types::Output<T>(_2_sends, _3_timer, Types::CommitOutput::create_NoCommit());
+    return out;
+  }
+  
+  template <typename T>
+  Types::Output <T>  StateMachine<T>::OnAppendEntriesRpc(Types::Message <T>  ae)
+  {
+    Types::Output <T>  out = Types::Output<T>();
+    Raft::TermRelation _0_msgTermIs;
+    _0_msgTermIs = Raft::__default::CompareTerms(this->currentTerm, ((ae).dtor_term()));
+    if ((_0_msgTermIs) == (Raft::TermRelation::create_Stale())) {
+      out = Types::Output<T>(Types::MessageOutput <T> ::create_NoMessage(), Types::TimerOutput::create_NoTimerChange(), Types::CommitOutput::create_NoCommit());
+      return out;
+    }
+    if ((_0_msgTermIs) == (Raft::TermRelation::create_New())) {
+      (this)->currentTerm = ((ae).dtor_term());
+      (this)->votedFor = (uint64)0;
+      (this)->votes = DafnySequence<uint64>::Create({});
+      (this)->role = Raft::Role::create_Follower();
+      DafnyArray<Raft::ReplicationState> _out0;
+      _out0 = (this)->NewReplicationStates();
+      (this)->replicationStates = _out0;
+    }
+    if ((this->role) != (Raft::Role::create_Follower())) {
+      (this)->role = Raft::Role::create_Follower();
+      (this)->votes = DafnySequence<uint64>::Create({});
+      DafnyArray<Raft::ReplicationState> _out1;
+      _out1 = (this)->NewReplicationStates();
+      (this)->replicationStates = _out1;
+    }
+    (this)->timeOutGen = (this->timeOutGen) + ((uint64)1);
+    Types::TimerOutput _1_timer;
+    _1_timer = Types::TimerOutput::create_TimerChanges(DafnySequence<Types::TimerCommand>::Create({Types::TimerCommand::create_SetElectionTimer(this->timeOutGen)}));
+    bool _2_success;
+    _2_success = (((ae).dtor_prevLogTerm())) == ((((this->log).at(((ae).dtor_prevLogIndex()))).term));
+    if (!(_2_success)) {
+      Types::MessageOutput <T>  _3_aer;
+      _3_aer = Types::MessageOutput <T> ::create_Messages(DafnySequence<Types::Send <T> >::Create({Types::Send<T>(((ae).dtor_leaderId()), Types::Message <T> ::create_AppendEntriesResponse(this->currentTerm, _2_success, (this)->id, this->lastLogIndex))}));
+      out = Types::Output<T>(_3_aer, _1_timer, Types::CommitOutput::create_NoCommit());
+      return out;
+    }
+    (this)->UpdateLog(ae);
+    Types::CommitOutput _4_commits;
+    _4_commits = Types::CommitOutput::create_NoCommit();
+    if ((((ae).dtor_leaderCommitIndex())) > (this->commitIndex)) {
+      (this)->commitIndex = Types::__default::Min(this->lastLogIndex, ((ae).dtor_leaderCommitIndex()));
+      if ((this->commitIndex) > (this->lastApplied)) {
+        _4_commits = Types::CommitOutput::create_CommitAdvanced((this->lastApplied) + ((uint64)1), this->commitIndex);
+        (this)->lastApplied = this->commitIndex;
+      }
+    }
+    Types::MessageOutput <T>  _5_sends;
+    _5_sends = Types::MessageOutput <T> ::create_Messages(DafnySequence<Types::Send <T> >::Create({Types::Send<T>(((ae).dtor_leaderId()), Types::Message <T> ::create_AppendEntriesResponse(this->currentTerm, _2_success, (this)->id, this->lastLogIndex))}));
+    out = Types::Output<T>(_5_sends, _1_timer, _4_commits);
+    return out;
+  }
+  
+  template <typename T>
+  Types::Output <T>  StateMachine<T>::OnAppendEntriesResponseRpc(Types::Message <T>  aer)
+  {
+    Types::Output <T>  out = Types::Output<T>();
+    Raft::TermRelation _0_msgTermIs;
+    _0_msgTermIs = Raft::__default::CompareTerms(this->currentTerm, ((aer).dtor_term()));
+    if ((_0_msgTermIs) == (Raft::TermRelation::create_Stale())) {
+      out = Types::Output<T>(Types::MessageOutput <T> ::create_NoMessage(), Types::TimerOutput::create_NoTimerChange(), Types::CommitOutput::create_NoCommit());
+      return out;
+    }
+    if ((_0_msgTermIs) == (Raft::TermRelation::create_New())) {
+      (this)->currentTerm = ((aer).dtor_term());
+      (this)->votedFor = (uint64)0;
+      (this)->votes = DafnySequence<uint64>::Create({});
+      (this)->role = Raft::Role::create_Follower();
+      DafnyArray<Raft::ReplicationState> _out0;
+      _out0 = (this)->NewReplicationStates();
+      (this)->replicationStates = _out0;
+      (this)->timeOutGen = (this->timeOutGen) + ((uint64)1);
+      out = Types::Output<T>(Types::MessageOutput <T> ::create_NoMessage(), Types::TimerOutput::create_TimerChanges(DafnySequence<Types::TimerCommand>::Create({Types::TimerCommand::create_SetElectionTimer(this->timeOutGen)})), Types::CommitOutput::create_NoCommit());
+      return out;
+    }
+    if ((this->role) != (Raft::Role::create_Leader())) {
+      out = Types::Output<T>(Types::MessageOutput <T> ::create_NoMessage(), Types::TimerOutput::create_NoTimerChange(), Types::CommitOutput::create_NoCommit());
+      return out;
+    }
+    DafnyArray<Raft::ReplicationState> _arr0 = this->replicationStates;
+    uint64 _index0 = ((aer).dtor_senderId());
+    _arr0.at(_index0) = Raft::ReplicationState((((aer).dtor_lastLogIndex())) + ((uint64)1), (((this->replicationStates).at(((aer).dtor_senderId()))).matchIndex), (((this->replicationStates).at(((aer).dtor_senderId()))).heartBeatGen));
+    Types::CommitOutput _1_commits;
+    _1_commits = Types::CommitOutput::create_NoCommit();
+    if (((aer).dtor_success())) {
+      DafnyArray<Raft::ReplicationState> _arr1 = this->replicationStates;
+      uint64 _index1 = ((aer).dtor_senderId());
+      _arr1.at(_index1) = Raft::ReplicationState((((this->replicationStates).at(((aer).dtor_senderId()))).nextIndex), ((aer).dtor_lastLogIndex()), (((this->replicationStates).at(((aer).dtor_senderId()))).heartBeatGen));
+      if ((((aer).dtor_lastLogIndex())) > (this->commitIndex)) {
+        (this)->TryAdvanceCommitIndex(((aer).dtor_lastLogIndex()));
+        if ((this->lastApplied) < (this->commitIndex)) {
+          _1_commits = Types::CommitOutput::create_CommitAdvanced((this->lastApplied) + ((uint64)1), this->commitIndex);
+          (this)->lastApplied = this->commitIndex;
         }
       }
-      else {
-        ++it;
+    }
+    if (((((this->replicationStates).at(((aer).dtor_senderId()))).nextIndex)) < ((this->lastLogIndex) + ((uint64)1))) {
+      uint64 _2_nextIndex;
+      _2_nextIndex = (((this->replicationStates).at(((aer).dtor_senderId()))).nextIndex);
+      Types::MessageOutput <T>  _3_sends;
+      _3_sends = Types::MessageOutput <T> ::create_Messages(DafnySequence<Types::Send <T> >::Create({Types::Send<T>(((aer).dtor_senderId()), Types::Message <T> ::create_AppendEntries(this->currentTerm, (this)->id, (_2_nextIndex) - ((uint64)1), (((this->log).at((_2_nextIndex) - ((uint64)1))).term), DafnySequence<Types::Entry <T> >::SeqFromArraySlice((this->log),(_2_nextIndex),(Types::__default::Min((_2_nextIndex) + (Raft::__default::maxEntries), (this->lastLogIndex) + ((uint64)1)))), this->commitIndex))}));
+      DafnyArray<Raft::ReplicationState> _arr2 = this->replicationStates;
+      uint64 _index2 = ((aer).dtor_senderId());
+      _arr2.at(_index2) = Raft::ReplicationState((((this->replicationStates).at(((aer).dtor_senderId()))).nextIndex), (((this->replicationStates).at(((aer).dtor_senderId()))).matchIndex), ((((this->replicationStates).at(((aer).dtor_senderId()))).heartBeatGen)) + ((uint64)1));
+      Types::TimerOutput _4_timer;
+      _4_timer = Types::TimerOutput::create_TimerChanges(DafnySequence<Types::TimerCommand>::Create({Types::TimerCommand::create_SetReplicateTimer(((aer).dtor_senderId()), (((this->replicationStates).at(((aer).dtor_senderId()))).heartBeatGen))}));
+      out = Types::Output<T>(_3_sends, _4_timer, _1_commits);
+      return out;
+    }
+    out = Types::Output<T>(Types::MessageOutput <T> ::create_NoMessage(), Types::TimerOutput::create_NoTimerChange(), _1_commits);
+    return out;
+  }
+  
+  template <typename T>
+  Types::Output <T>  StateMachine<T>::OnRequestVoteRpc(Types::Message <T>  rv)
+  {
+    Types::Output <T>  out = Types::Output<T>();
+    Raft::TermRelation _0_msgTermIs;
+    _0_msgTermIs = Raft::__default::CompareTerms(this->currentTerm, ((rv).dtor_term()));
+    if ((_0_msgTermIs) == (Raft::TermRelation::create_Stale())) {
+      out = Types::Output<T>(Types::MessageOutput <T> ::create_NoMessage(), Types::TimerOutput::create_NoTimerChange(), Types::CommitOutput::create_NoCommit());
+      return out;
+    }
+    Types::TimerOutput _1_potentialTimer;
+    _1_potentialTimer = Types::TimerOutput::create_NoTimerChange();
+    if ((_0_msgTermIs) == (Raft::TermRelation::create_New())) {
+      (this)->currentTerm = ((rv).dtor_term());
+      (this)->votedFor = (uint64)0;
+      (this)->votes = DafnySequence<uint64>::Create({});
+      (this)->role = Raft::Role::create_Follower();
+      DafnyArray<Raft::ReplicationState> _out0;
+      _out0 = (this)->NewReplicationStates();
+      (this)->replicationStates = _out0;
+      (this)->timeOutGen = (this->timeOutGen) + ((uint64)1);
+      _1_potentialTimer = Types::TimerOutput::create_TimerChanges(DafnySequence<Types::TimerCommand>::Create({Types::TimerCommand::create_SetElectionTimer(this->timeOutGen)}));
+    }
+    if (((this->votedFor) != ((uint64)0)) && ((((rv).dtor_candidateId())) != (this->votedFor))) {
+      DafnySequence<Types::Send <T> > _2_sends;
+      _2_sends = DafnySequence<Types::Send <T> >::Create({Types::Send<T>(((rv).dtor_candidateId()), Types::Message <T> ::create_RequestVoteResponse(this->currentTerm, false, (this)->id))});
+      out = Types::Output<T>(Types::MessageOutput <T> ::create_Messages(_2_sends), _1_potentialTimer, Types::CommitOutput::create_NoCommit());
+      return out;
+    }
+    if ((((rv).dtor_candidateId())) == (this->votedFor)) {
+      DafnySequence<Types::Send <T> > _3_sends;
+      _3_sends = DafnySequence<Types::Send <T> >::Create({Types::Send<T>(((rv).dtor_candidateId()), Types::Message <T> ::create_RequestVoteResponse(this->currentTerm, true, (this)->id))});
+      out = Types::Output<T>(Types::MessageOutput <T> ::create_Messages(_3_sends), _1_potentialTimer, Types::CommitOutput::create_NoCommit());
+      return out;
+    }
+    if (Raft::__default::CandidateLogUpToDate(((rv).dtor_lastLogTerm()), (((this->log).at(this->lastLogIndex)).term), ((rv).dtor_lastLogIndex()), this->lastLogIndex)) {
+      (this)->votedFor = ((rv).dtor_candidateId());
+      if ((_0_msgTermIs) != (Raft::TermRelation::create_New())) {
+        (this)->timeOutGen = (this->timeOutGen) + ((uint64)1);
+        _1_potentialTimer = Types::TimerOutput::create_TimerChanges(DafnySequence<Types::TimerCommand>::Create({Types::TimerCommand::create_SetElectionTimer(this->timeOutGen)}));
       }
+      DafnySequence<Types::Send <T> > _4_sends;
+      _4_sends = DafnySequence<Types::Send <T> >::Create({Types::Send<T>(((rv).dtor_candidateId()), Types::Message <T> ::create_RequestVoteResponse(this->currentTerm, true, (this)->id))});
+      out = Types::Output<T>(Types::MessageOutput <T> ::create_Messages(_4_sends), _1_potentialTimer, Types::CommitOutput::create_NoCommit());
+      return out;
     }
+    DafnySequence<Types::Send <T> > _5_sends;
+    _5_sends = DafnySequence<Types::Send <T> >::Create({Types::Send<T>(((rv).dtor_candidateId()), Types::Message <T> ::create_RequestVoteResponse(this->currentTerm, false, (this)->id))});
+    out = Types::Output<T>(Types::MessageOutput <T> ::create_Messages(_5_sends), _1_potentialTimer, Types::CommitOutput::create_NoCommit());
+    return out;
   }
-}
-
-void Raft::PruneRedundantInFlightMsgsLocked(int followerId, uint64_t followerLastLogIndex) {
-  assert(role_ == Role::LEADER);
-  assert(followerId > 0);
-  assert(static_cast<size_t>(followerId) < inflightVecs_.size());
-  assert(followerId != id_);
-
-  auto& msgVec = inflightVecs_[followerId];
-  if (msgVec.empty()) {
-    return;
-  }
-  auto it = msgVec.begin();
-  while(it != msgVec.end()) {
-    if (it->prevLogIndexSent > followerLastLogIndex || it->lastIndexOfSegmentSent <= followerLastLogIndex) {
-      it = msgVec.erase(it);
-      if (replicationLoggingFlag_) {
-        LOG(INFO) << "JIM -> " << __FUNCTION__ << ": Pruned redundant inflight AE for follower " << followerId;
+  
+  template <typename T>
+  Types::Output <T>  StateMachine<T>::OnRequestVoteResponseRpc(Types::Message <T>  rvr)
+  {
+    Types::Output <T>  out = Types::Output<T>();
+    Raft::TermRelation _0_msgTermIs;
+    _0_msgTermIs = Raft::__default::CompareTerms(this->currentTerm, ((rvr).dtor_term()));
+    if ((_0_msgTermIs) == (Raft::TermRelation::create_Stale())) {
+      out = Types::Output<T>(Types::MessageOutput <T> ::create_NoMessage(), Types::TimerOutput::create_NoTimerChange(), Types::CommitOutput::create_NoCommit());
+      return out;
+    }
+    if ((_0_msgTermIs) == (Raft::TermRelation::create_New())) {
+      (this)->currentTerm = ((rvr).dtor_term());
+      (this)->votedFor = (uint64)0;
+      (this)->votes = DafnySequence<uint64>::Create({});
+      (this)->role = Raft::Role::create_Follower();
+      DafnyArray<Raft::ReplicationState> _out0;
+      _out0 = (this)->NewReplicationStates();
+      (this)->replicationStates = _out0;
+      (this)->timeOutGen = (this->timeOutGen) + ((uint64)1);
+      out = Types::Output<T>(Types::MessageOutput <T> ::create_NoMessage(), Types::TimerOutput::create_TimerChanges(DafnySequence<Types::TimerCommand>::Create({Types::TimerCommand::create_SetElectionTimer(this->timeOutGen)})), Types::CommitOutput::create_NoCommit());
+      return out;
+    }
+    if (((this->role) != (Raft::Role::create_Candidate())) || (!(((rvr).dtor_voteGranted())))) {
+      out = Types::Output<T>(Types::MessageOutput <T> ::create_NoMessage(), Types::TimerOutput::create_NoTimerChange(), Types::CommitOutput::create_NoCommit());
+      return out;
+    }
+    uint64 _1_i;
+    _1_i = (uint64)0;
+    while ((_1_i) < ((uint64)((this->votes).size()))) {
+      if ((((rvr).dtor_senderId())) == ((this->votes).select(_1_i))) {
+        out = Types::Output<T>(Types::MessageOutput <T> ::create_NoMessage(), Types::TimerOutput::create_NoTimerChange(), Types::CommitOutput::create_NoCommit());
+        return out;
       }
+      _1_i = (_1_i) + ((uint64)1);
     }
-    else {
-      ++it;
+    (this)->votes = (this->votes).concatenate(DafnySequence<uint64>::Create({((rvr).dtor_senderId())}));
+    if (((uint64)((this->votes).size())) >= ((this)->quorum)) {
+      uint64 _2_localLLI;
+      _2_localLLI = this->lastLogIndex;
+      (this)->role = Raft::Role::create_Leader();
+      DafnyArray<Raft::ReplicationState> _out1;
+      _out1 = (this)->NewLeaderReplicationStates(_2_localLLI);
+      (this)->replicationStates = _out1;
+      DafnySequence<Types::Send <T> > _3_sends;
+      _3_sends = DafnySequence<Types::Send <T> >::Create({});
+      DafnySequence<Types::TimerCommand> _4_timerCommands;
+      _4_timerCommands = DafnySequence<Types::TimerCommand>::Create({});
+      uint64 _5_i;
+      _5_i = (uint64)1;
+      while ((_5_i) < (((this)->total__num) + ((uint64)1))) {
+        if ((_5_i) != ((this)->id)) {
+          Types::Message <T>  _6_ae;
+          _6_ae = Types::Message <T> ::create_AppendEntries(this->currentTerm, (this)->id, this->lastLogIndex, (((this->log).at(this->lastLogIndex)).term), DafnySequence<Types::Entry <T> >::Create({}), this->commitIndex);
+          _3_sends = (_3_sends).concatenate(DafnySequence<Types::Send <T> >::Create({Types::Send<T>(_5_i, _6_ae)}));
+          _4_timerCommands = (_4_timerCommands).concatenate(DafnySequence<Types::TimerCommand>::Create({Types::TimerCommand::create_SetReplicateTimer(_5_i, (((this->replicationStates).at(_5_i)).heartBeatGen))}));
+        }
+        _5_i = (_5_i) + ((uint64)1);
+      }
+      out = Types::Output<T>(Types::MessageOutput <T> ::create_Messages(_3_sends), Types::TimerOutput::create_TimerChanges(_4_timerCommands), Types::CommitOutput::create_NoCommit());
+      return out;
+    }
+    out = Types::Output<T>(Types::MessageOutput <T> ::create_NoMessage(), Types::TimerOutput::create_NoTimerChange(), Types::CommitOutput::create_NoCommit());
+    return out;
+  }
+  
+  template <typename T>
+  uint64 StateMachine<T>::LogLen()
+  {
+    return (this->lastLogIndex) + ((uint64)1);
+  }
+  
+  template <typename T>
+  void StateMachine<T>::TryAdvanceCommitIndex(uint64 maxIndex)
+  {
+    uint64 _0_newCommitIndex;
+    _0_newCommitIndex = maxIndex;
+    while ((_0_newCommitIndex) > (this->commitIndex)) {
+      uint64 _1_matchCount;
+      uint64 _out0;
+      _out0 = (this)->CountReplicasWithMatchAtLeast(_0_newCommitIndex);
+      _1_matchCount = _out0;
+      if (((_1_matchCount) >= ((this)->quorum)) && (((((this->log).at(_0_newCommitIndex)).term)) == (this->currentTerm))) {
+        (this)->commitIndex = _0_newCommitIndex;
+        goto after_0;
+      }
+      _0_newCommitIndex = (_0_newCommitIndex) - ((uint64)1);
+    }
+  after_0: ;
+  }
+  
+  template <typename T>
+  uint64 StateMachine<T>::CountReplicasWithMatchAtLeast(uint64 index)
+  {
+    uint64 count = 0;
+    count = (uint64)0;
+    uint64 _0_i;
+    _0_i = (uint64)1;
+    uint64 _1_len;
+    _1_len = (uint64)((this->replicationStates).size());
+    while ((_0_i) < (_1_len)) {
+      if (((((this->replicationStates).at(_0_i)).matchIndex)) >= (index)) {
+        count = (count) + ((uint64)1);
+      }
+      _0_i = (_0_i) + ((uint64)1);
+    }
+    return count;
+  }
+  
+  template <typename T>
+  DafnyArray<Raft::ReplicationState> StateMachine<T>::NewReplicationStates()
+  {
+    DafnyArray<Raft::ReplicationState> rs = DafnyArray<Raft::ReplicationState>::Null();
+    uint64 _0_size;
+    _0_size = ((this)->total__num) + ((uint64)1);
+    DafnyArray<Raft::ReplicationState> _nw0 = DafnyArray<Raft::ReplicationState>::New(_0_size);
+    rs = _nw0;
+    uint64 _1_i;
+    _1_i = (uint64)0;
+    while ((_1_i) < (((this)->total__num) + ((uint64)1))) {
+      (rs).at((_1_i)) = Raft::__default::unusedIndex;
+      _1_i = (_1_i) + ((uint64)1);
+    }
+    return rs;
+  }
+  
+  template <typename T>
+  DafnyArray<Raft::ReplicationState> StateMachine<T>::NewLeaderReplicationStates(uint64 lli)
+  {
+    DafnyArray<Raft::ReplicationState> rs = DafnyArray<Raft::ReplicationState>::Null();
+    uint64 _0_size;
+    _0_size = ((this)->total__num) + ((uint64)1);
+    DafnyArray<Raft::ReplicationState> _nw0 = DafnyArray<Raft::ReplicationState>::New(_0_size);
+    rs = _nw0;
+    (rs).at((0)) = Raft::__default::unusedIndex;
+    uint64 _1_i;
+    _1_i = (uint64)1;
+    while ((_1_i) < (((this)->total__num) + ((uint64)1))) {
+      if ((_1_i) == ((this)->id)) {
+        (rs).at((_1_i)) = Raft::ReplicationState((lli) + ((uint64)1), lli, (uint64)0);
+      } else {
+        (rs).at((_1_i)) = Raft::ReplicationState((lli) + ((uint64)1), (uint64)0, (uint64)1);
+      }
+      _1_i = (_1_i) + ((uint64)1);
+    }
+    return rs;
+  }
+  
+  template <typename T>
+  void StateMachine<T>::UpdateLog(Types::Message <T>  ae)
+  {
+    uint64 _0_logIdx;
+    _0_logIdx = (((ae).dtor_prevLogIndex())) + ((uint64)1);
+    uint64 _1_entriesIdx;
+    _1_entriesIdx = (uint64)0;
+    while (((_0_logIdx) < ((this)->LogLen())) && ((_1_entriesIdx) < ((uint64)((((ae).dtor_entries())).size())))) {
+      if (((((((ae).dtor_entries())).select(_1_entriesIdx)).term)) != ((((this->log).at(_0_logIdx)).term))) {
+        (this)->lastLogIndex = (_0_logIdx) - ((uint64)1);
+        goto after_0;
+      }
+      _0_logIdx = (_0_logIdx) + ((uint64)1);
+      _1_entriesIdx = (_1_entriesIdx) + ((uint64)1);
+    }
+  after_0: ;
+    if ((_1_entriesIdx) < ((uint64)((((ae).dtor_entries())).size()))) {
+      (this)->AppendNewEntries(ae, _1_entriesIdx);
     }
   }
-}
-
-void Raft::RecordNewInFlightMsgLocked(const AeFields& msg, std::chrono::steady_clock::time_point timestamp) {
-  if (msg.entries.empty()) {
-    return;
+  
+  template <typename T>
+  void StateMachine<T>::AppendNewEntries(Types::Message <T>  ae, uint64 startIdx)
+  {
+    uint64 _0_i;
+    _0_i = startIdx;
+    while ((_0_i) < ((uint64)((((ae).dtor_entries())).size()))) {
+      DafnyArray<Types::Entry <T> > _arr0 = this->log;
+      uint64 _index0 = (this->lastLogIndex) + ((uint64)1);
+      _arr0.at(_index0) = (((ae).dtor_entries())).select(_0_i);
+      (this)->lastLogIndex = (this->lastLogIndex) + ((uint64)1);
+      _0_i = (_0_i) + ((uint64)1);
+    }
   }
-  InFlightMsg inFlight;
-  inFlight.timeSent = timestamp;
-  inFlight.prevLogIndexSent = msg.prevLogIndex;
-  inFlight.lastIndexOfSegmentSent = msg.prevLogIndex + msg.entries.size();
-  inflightVecs_[msg.followerId].push_back(inFlight);
-}
+#include "NewLog.h"
+}// end of namespace Raft 
+namespace _module  {
 
-bool Raft::InFlightPerFollowerLimitReachedLocked(int followerId) const {
-  assert(role_ == Role::LEADER);
-  assert(followerId > 0);
-  assert(static_cast<size_t>(followerId) < inflightVecs_.size());
-  assert(followerId != id_);
-
-  auto size = inflightVecs_[followerId].size();
-  assert(size <= maxInFlightPerFollower);
-  return size == maxInFlightPerFollower;
-}
-
-void Raft::PrintDebugState() const {
-  std::lock_guard<std::mutex> lk(mutex_);
-
-  LOG(INFO) << "---- Raft Debug State ----\n";
-  LOG(INFO) << "currentTerm_: " << currentTerm_ << "\n";
-  LOG(INFO) << "votedFor_: " << votedFor_ << "\n";
-
-  LOG(INFO) << "log_ (size " << log_.size() << "): [";
-  for (size_t i = 0; i < log_.size(); ++i) {
-    LOG(INFO) << "{term: " << log_[i]->term
-              << ", cmd_size: " << log_[i]->command.size() << "}";
-    if (i + 1 != log_.size()) LOG(INFO) << ", ";
+}// end of namespace _module 
+template <typename T>
+struct get_default<Types::Entry<T> > {
+  static Types::Entry<T> call() {
+    return Types::Entry<T>();
   }
-  LOG(INFO) << "]\n";
-
-  LOG(INFO) << "nextIndex_: [";
-  for (size_t i = 0; i < nextIndex_.size(); ++i) {
-    LOG(INFO) << nextIndex_[i];
-    if (i + 1 != nextIndex_.size()) LOG(INFO) << ", ";
+};
+template <typename T>
+struct get_default<Types::Message<T> > {
+  static Types::Message<T> call() {
+    return Types::Message<T>();
   }
-  LOG(INFO) << "]\n";
-
-  LOG(INFO) << "matchIndex_: [";
-  for (size_t i = 0; i < matchIndex_.size(); ++i) {
-    LOG(INFO) << matchIndex_[i];
-    if (i + 1 != matchIndex_.size()) LOG(INFO) << ", ";
+};
+template <typename T>
+struct get_default<Types::Event<T> > {
+  static Types::Event<T> call() {
+    return Types::Event<T>();
   }
-  LOG(INFO) << "]\n";
-
-  LOG(INFO) << "heartBeatsSentThisTerm_: " << heartBeatsSentThisTerm_ << "\n";
-  LOG(INFO) << "lastLogIndex_: " << lastLogIndex_ << "\n";
-  LOG(INFO) << "commitIndex_: " << commitIndex_ << "\n";
-  LOG(INFO) << "lastApplied_: " << lastApplied_ << "\n";
-  LOG(INFO) << "role_: " << static_cast<int>(role_) << "\n";
-
-  LOG(INFO) << "votes_: [";
-  for (size_t i = 0; i < votes_.size(); ++i) {
-    LOG(INFO) << votes_[i];
-    if (i + 1 != votes_.size()) LOG(INFO) << ", ";
+};
+template <typename T>
+struct get_default<Types::Send<T> > {
+  static Types::Send<T> call() {
+    return Types::Send<T>();
   }
-  LOG(INFO) << "]\n";
-
-  LOG(INFO) << "--------------------------\n";
-}
-
-}  // namespace raft
-}  // namespace resdb
+};
+template <typename T>
+struct get_default<Types::MessageOutput<T> > {
+  static Types::MessageOutput<T> call() {
+    return Types::MessageOutput<T>();
+  }
+};
+template <>
+struct get_default<Types::TimerCommand > {
+  static Types::TimerCommand call() {
+    return Types::TimerCommand();
+  }
+};
+template <>
+struct get_default<Types::TimerOutput > {
+  static Types::TimerOutput call() {
+    return Types::TimerOutput();
+  }
+};
+template <>
+struct get_default<Types::CommitOutput > {
+  static Types::CommitOutput call() {
+    return Types::CommitOutput();
+  }
+};
+template <typename T>
+struct get_default<Types::Output<T> > {
+  static Types::Output<T> call() {
+    return Types::Output<T>();
+  }
+};
+template <>
+struct get_default<Raft::Role > {
+  static Raft::Role call() {
+    return Raft::Role();
+  }
+};
+template <>
+struct get_default<Raft::TermRelation > {
+  static Raft::TermRelation call() {
+    return Raft::TermRelation();
+  }
+};
+template <>
+struct get_default<Raft::ReplicationState > {
+  static Raft::ReplicationState call() {
+    return Raft::ReplicationState();
+  }
+};
+template <>
+struct get_default<std::shared_ptr<Types::__default > > {
+static std::shared_ptr<Types::__default > call() {
+return std::shared_ptr<Types::__default >();}
+};
+template <>
+struct get_default<std::shared_ptr<Types::class_uint64 > > {
+static std::shared_ptr<Types::class_uint64 > call() {
+return std::shared_ptr<Types::class_uint64 >();}
+};
+template <>
+struct get_default<std::shared_ptr<Raft::__default > > {
+static std::shared_ptr<Raft::__default > call() {
+return std::shared_ptr<Raft::__default >();}
+};
+template <typename T>
+struct get_default<std::shared_ptr<Raft::StateMachine<T> > > {
+static std::shared_ptr<Raft::StateMachine<T> > call() {
+return std::shared_ptr<Raft::StateMachine<T> >();}
+};

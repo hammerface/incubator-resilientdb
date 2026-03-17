@@ -20,6 +20,9 @@
 #pragma once
 
 #include <future>
+#include <atomic>
+#include <condition_variable>
+#include <mutex>
 
 #include "platform/config/resdb_config.h"
 #include "platform/consensus/ordering/common/framework/transaction_utils.h"
@@ -93,6 +96,9 @@ class PerformanceManager {
   std::atomic<int> primary_;
   std::atomic<int> local_id_;
   std::atomic<int> sum_;
+  std::atomic<bool> has_primary_{false};
+  std::mutex primary_mu_;
+  std::condition_variable primary_cv_;
 };
 
 }  // namespace common

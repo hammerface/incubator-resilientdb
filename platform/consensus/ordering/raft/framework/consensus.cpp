@@ -31,11 +31,10 @@ namespace raft {
 
 Consensus::Consensus(const ResDBConfig& config,
                      std::unique_ptr<TransactionManager> executor)
-    : common::Consensus(config, std::move(executor)),
-    leader_election_manager_(std::make_unique<LeaderElectionManager>(config_)) {
+    : common::Consensus(config, std::move(executor)) {
   //LOG(INFO) << "JIM -> " << __FUNCTION__ << ": In consensus constructor";
   int total_replicas = config_.GetReplicaNum();
-  int f = (total_replicas - 1) / 3;
+  int f = (total_replicas - 1) / 2;
 
   Init();
 
@@ -43,61 +42,48 @@ Consensus::Consensus(const ResDBConfig& config,
           .public_key()
           .public_key_info()
           .type() != CertificateKeyInfo::CLIENT) {
-    raft_ = std::make_unique<Raft>(config_.GetSelfInfo().id(), f, total_replicas,
-                                 GetSignatureVerifier(), leader_election_manager_.get(),
-                                replica_communicator_);
-
-    leader_election_manager_->SetRaft(raft_.get());
-    leader_election_manager_->MayStart();
+    event_loop_ = std::make_unique<RaftEventLoop>(config_.GetSelfInfo().id(), f, total_replicas,
+        [this](int type, const google::protobuf::Message& msg, int node_id) {
+          return SendMsg(type, msg, node_id);
+        },
+        [this](int type, const google::protobuf::Message& msg) {
+            return Broadcast(type, msg);
+        },
+        [this](const google::protobuf::Message& msg) {
+            return CommitMsg(msg);
+        },
+        [this](int leader_id, uint64_t term) {
+          DirectToLeader dtl;
+          dtl.set_term(term);
+          dtl.set_leaderid(leader_id);
+          auto clients = replica_communicator_->GetClientReplicas();
+          LOG(INFO) << "on_became_leader: sending DTL leader=" << leader_id 
+              << " term=" << term 
+              << " num_clients=" << clients.size();
+          for (const auto& client : clients) {
+              LOG(INFO) << "on_became_leader: sending to client id=" << client.id();
+              SendMsg(MessageType::DirectToLeaderMsg, dtl, client.id());
+          }
+        });
     
-    InitProtocol(raft_.get());
+    event_loop_->Start();
   }
 }
 
+static const char* WireMessageTypeName(int type) {
+    switch (type) {
+        case MessageType::AppendEntriesMsg: return "AppendEntriesMsg";
+        case MessageType::AppendEntriesResponseMsg: return "AppendEntriesResponseMsg";
+        case MessageType::RequestVoteMsg: return "RequestVoteMsg";
+        case MessageType::RequestVoteResponseMsg: return "RequestVoteResponseMsg";
+        case MessageType::DirectToLeaderMsg: return "DirectToLeaderMsg";
+        default: return "UnknownWireMsg";
+    }
+}
+
 int Consensus::ProcessCustomConsensus(std::unique_ptr<Request> request) {
-  if (request->user_type() == MessageType::AppendEntriesMsg) {
-    //LOG(ERROR) << "Received AppendEntriesMsg";
-    std::unique_ptr<AppendEntries> txn = std::make_unique<AppendEntries>();
-    if (!txn->ParseFromString(request->data())) {
-      LOG(ERROR) << "parse proposal fail";
-      assert(1 == 0);
-      return -1;
-    }
-    raft_->ReceiveAppendEntries(std::move(txn));
-    return 0;
-  }
-  else if (request->user_type() == MessageType::AppendEntriesResponseMsg) {
-    std::unique_ptr<AppendEntriesResponse> AppendEntriesResponse = std::make_unique<resdb::raft::AppendEntriesResponse>();
-    if (!AppendEntriesResponse->ParseFromString(request->data())) {
-      LOG(ERROR) << "parse proposal fail";
-      assert(1 == 0);
-      return -1;
-    }
-    raft_->ReceiveAppendEntriesResponse(std::move(AppendEntriesResponse));
-    return 0;
-  }
-  else if (request->user_type() == MessageType::RequestVoteMsg) {
-    std::unique_ptr<RequestVote> rv = std::make_unique<resdb::raft::RequestVote>();
-    if (!rv->ParseFromString(request->data())) {
-      LOG(ERROR) << "parse proposal fail";
-      assert(1 == 0);
-      return -1;
-    }
-    raft_->ReceiveRequestVote(std::move(rv));
-    return 0;
-  }
-  else if (request->user_type() == MessageType::RequestVoteResponseMsg) {
-    std::unique_ptr<RequestVoteResponse> rvr = std::make_unique<resdb::raft::RequestVoteResponse>();
-    if (!rvr->ParseFromString(request->data())) {
-      LOG(ERROR) << "parse proposal fail";
-      assert(1 == 0);
-      return -1;
-    }
-    raft_->ReceiveRequestVoteResponse(std::move(rvr));
-    return 0;
-  }
-  else if (request->user_type() == MessageType::DirectToLeaderMsg) {
-    //LOG(INFO) << "JIM -> " << __FUNCTION__ << ": In DirectToLeader";
+  LOG(INFO) << "Consensus: received message type " << WireMessageTypeName(request->user_type());
+  if (request->user_type() == MessageType::DirectToLeaderMsg) {
     std::unique_ptr<DirectToLeader> dtl = std::make_unique<resdb::raft::DirectToLeader>();
     if (!dtl->ParseFromString(request->data())) {
       LOG(ERROR) << "parse proposal fail";
@@ -107,11 +93,13 @@ int Consensus::ProcessCustomConsensus(std::unique_ptr<Request> request) {
     performance_manager_->SetPrimary(dtl->leaderid());
     return 0;
   }
+  event_loop_->PushNetworkMessage(std::move(request));
   return 0;
 }
 
 int Consensus::ProcessNewTransaction(std::unique_ptr<Request> request) {
-    return raft_->ReceiveTransaction(std::move(request));
+    event_loop_->PushNetworkMessage(std::move(request));
+    return 0;
 }
 
 int Consensus::CommitMsg(const google::protobuf::Message& msg) {
@@ -121,8 +109,20 @@ int Consensus::CommitMsg(const google::protobuf::Message& msg) {
     return -1;
   }
   auto execReq = std::make_unique<Request>(*req);
+  LOG(INFO) << "CommitMsg: seq=" << req->seq() 
+          << " proxy_id=" << req->proxy_id()
+          << " user_seq=" << req->user_seq();
   transaction_executor_->Commit(std::move(execReq));
   return 0;
+}
+
+void Consensus::SendDirectToLeader(int leader_id, uint64_t term) {
+    DirectToLeader dtl;
+    dtl.set_term(term);
+    dtl.set_leaderid(leader_id);
+    for (const auto& client : replica_communicator_->GetClientReplicas()) {
+        SendMsg(MessageType::DirectToLeaderMsg, dtl, client.id());
+    }
 }
 
 }  // namespace raft

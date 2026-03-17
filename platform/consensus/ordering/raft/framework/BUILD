@@ -28,6 +28,6 @@ cc_library(
     deps = [
         "//common/utils",
         "//platform/consensus/ordering/common/framework:consensus",
-        "//platform/consensus/ordering/raft/algorithm:raft",
+        "//platform/consensus/ordering/raft/algorithm:raft_event_loop",
     ],
 )

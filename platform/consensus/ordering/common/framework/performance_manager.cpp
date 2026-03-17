@@ -70,13 +70,14 @@ PerformanceManager::~PerformanceManager() {
 int PerformanceManager::GetPrimary() { return primary_.load(); }
 
 void PerformanceManager::SetPrimary(int id) {
-  int curr_primary = primary_.load();
-  while (id != curr_primary) {
-    if (primary_.compare_exchange_strong(curr_primary, id)) {
-    LOG(INFO) << "JIM -> " << __FUNCTION__ << ": primary updated to " << id;
-    return;
-    }
-  }  
+  int old = primary_.load();
+  primary_.store(id);
+  has_primary_.store(true);
+  if (old != id) {
+    LOG(INFO) << "JIM -> " << __FUNCTION__
+              << ": primary updated from " << old << " to " << id;
+  }
+  primary_cv_.notify_all();
 }
 
 int PerformanceManager::NeedResponse() {
@@ -201,6 +202,17 @@ int PerformanceManager::BatchProposeMsg() {
               << " max txn:" << config_.GetMaxProcessTxn();
   std::vector<std::unique_ptr<QueueItem>> batch_req;
   eval_ready_future_.get();
+
+  {
+    std::unique_lock<std::mutex> lk(primary_mu_);
+    while (!stop_ && !has_primary_.load()) {
+      if (primary_cv_.wait_for(lk, std::chrono::seconds(1)) ==
+          std::cv_status::timeout) {
+        LOG(WARNING) << "Waiting for leader notification before sending requests";
+      }
+    }
+  }
+
   bool start = false;
   while (!stop_) {
     if (send_num_ > config_.GetMaxProcessTxn()) {

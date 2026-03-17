@@ -20,9 +20,9 @@
 #pragma once
 
 #include "executor/common/transaction_manager.h"
+#include "platform/common/queue/lock_free_queue.h"
 #include "platform/consensus/ordering/common/framework/consensus.h"
-#include "platform/consensus/ordering/raft/algorithm/raft.h"
-#include "platform/consensus/ordering/raft/algorithm/leaderelection_manager.h"
+#include "platform/consensus/ordering/raft/algorithm/raft_event_loop.h"
 #include "platform/networkstrate/consensus_manager.h"
 
 namespace resdb {
@@ -39,10 +39,10 @@ class Consensus : public common::Consensus {
   int ProcessNewTransaction(std::unique_ptr<Request> request) override;
   int CommitMsg(const google::protobuf::Message& msg) override;
   int CommitMsgInternal(const AppendEntries& txn);
+  void SendDirectToLeader(int leader_id, uint64_t term);
 
  protected:
-  std::unique_ptr<Raft> raft_;
-  std::unique_ptr<LeaderElectionManager> leader_election_manager_;
+  std::unique_ptr<RaftEventLoop> event_loop_;
 };
 
 }  // namespace raft
